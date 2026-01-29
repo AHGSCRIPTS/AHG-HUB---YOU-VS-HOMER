@@ -53,6 +53,10 @@ AHG_HOMER.ESPObjects = {}
 -- Configuracoes Wallhop
 AHG_HOMER.WallhopEnabled = false
 
+-- Configuracoes Speed
+AHG_HOMER.SpeedEnabled = false
+AHG_HOMER.SpeedMult = 1.4
+
 -- Configuracoes Fullbright
 AHG_HOMER.FullbrightEnabled = false
 AHG_HOMER.OriginalBrightness = game:GetService("Lighting").Brightness
@@ -361,7 +365,7 @@ function AHG_HOMER.UpdateESP()
 end
 
 -- ============================================
--- BYPASS ANTI-CHEAT (JUJU HUB)
+-- BYPASS ANTI-CHEAT
 -- ============================================
 local ACtable = {
     LocalPlayer.PlayerScripts:FindFirstChild("QuitsAntiCheatChecker"),
@@ -372,7 +376,7 @@ for _, v in pairs(ACtable) do
 end
 
 -- ============================================
--- WALLHOP BASEADO NO JUJU HUB (FUNCIONAL)
+-- WALLHOP
 -- ============================================
 local SETTINGS = {
     JumpHeight = 36,
@@ -393,6 +397,7 @@ local function getWallInfo()
     
     local dirs = {
         ["F"] = root.CFrame.LookVector,
+        ["B"] = -root.CFrame.LookVector,
         ["L"] = -root.CFrame.RightVector,
         ["R"] = root.CFrame.RightVector
     }
@@ -476,6 +481,37 @@ local function FarmCoin()
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
         LocalPlayer.Character.HumanoidRootPart.CFrame = FarmPos
     end
+end
+
+-- ============================================
+-- FUNCAO KILL ALL (HOMER)
+-- ============================================
+local function KillAll()
+    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    
+    local oldPos = root.CFrame
+    local killed = 0
+    
+    for _, pl in pairs(Players:GetPlayers()) do
+        if pl ~= LocalPlayer and pl.Character and pl.Character:FindFirstChild("HumanoidRootPart") then
+            local targetTeam = AHG_HOMER.GetPlayerTeam(pl)
+            if targetTeam == "Bart" then
+                root.CFrame = pl.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 2)
+                task.wait(0.5)
+                killed = killed + 1
+            end
+        end
+    end
+    
+    root.CFrame = oldPos
+    
+    AHG_HOMER.Window:Notify({
+        Title = "KILL ALL",
+        Content = "Matou " .. killed .. " Barts!",
+        Duration = 3,
+        Icon = "skull",
+    })
 end
 
 AHG_HOMER.BartSection = AHG_HOMER.TabESP:Section({Title = "Bart ESP"})
@@ -604,8 +640,17 @@ AHG_HOMER.WallhopSection:Toggle({
 })
 
 AHG_HOMER.WallhopSection:Toggle({
+    Title = "VELOCIDADE",
+    Description = "Aumenta velocidade para 1.4x (22.4 studs/s)",
+    Default = false,
+    Callback = function(v)
+        AHG_HOMER.SpeedEnabled = v
+    end
+})
+
+AHG_HOMER.WallhopSection:Toggle({
     Title = "FULLBRIGHT",
-    Description = "Ilumina todo o mapa",
+    Description = "Ilumina todo o mapa (protegido contra reset)",
     Default = false,
     Callback = function(v)
         AHG_HOMER.FullbrightEnabled = v
@@ -624,6 +669,14 @@ AHG_HOMER.WallhopSection:Toggle({
             Lighting.OutdoorAmbient = AHG_HOMER.OriginalOutdoorAmbient
             Lighting.Ambient = AHG_HOMER.OriginalAmbient
         end
+    end
+})
+
+AHG_HOMER.WallhopSection:Button({
+    Title = "KILL ALL (HOMER)",
+    Description = "Teleporta e mata todos os Barts (0.5s cada)",
+    Callback = function()
+        KillAll()
     end
 })
 
@@ -659,8 +712,40 @@ Players.PlayerRemoving:Connect(function(player)
     AHG_HOMER.RemoveESP(player)
 end)
 
+-- ============================================
+-- LOOPS PRINCIPAIS (OTIMIZADOS)
+-- ============================================
+
+-- Loop de ESP (60 FPS limit para otimizacao)
+local lastESPUpdate = 0
 RunService.RenderStepped:Connect(function()
-    pcall(AHG_HOMER.UpdateESP)
+    if tick() - lastESPUpdate >= 0.016 then -- ~60 FPS
+        pcall(AHG_HOMER.UpdateESP)
+        lastESPUpdate = tick()
+    end
+end)
+
+-- Loop de Speed (mais leve)
+RunService.Heartbeat:Connect(function()
+    if AHG_HOMER.SpeedEnabled then
+        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+        if hum then
+            hum.WalkSpeed = 16 * AHG_HOMER.SpeedMult
+        end
+    end
+end)
+
+-- Protecao de Fullbright (impede reset)
+RunService.Heartbeat:Connect(function()
+    if AHG_HOMER.FullbrightEnabled then
+        local Lighting = game:GetService("Lighting")
+        if Lighting.Brightness ~= 2 then
+            Lighting.Brightness = 2
+            Lighting.ClockTime = 14
+            Lighting.FogEnd = 100000
+            Lighting.GlobalShadows = false
+        end
+    end
 end)
 
 WindUI:Notify({
