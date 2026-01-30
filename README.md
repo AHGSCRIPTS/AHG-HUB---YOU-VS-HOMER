@@ -155,14 +155,14 @@ AHG_HOMER.Window = WindUI:CreateWindow({
 })
 
 AHG_HOMER.Window:Tag({
-    Title = "BETA V1.0",
-    Icon = "skull",
+    Title = "AHG HUB V1",
+    Icon = "rocket",
     Color = Color3.fromHex("#0b25e3"),
     Radius = 0,
 })
 
 AHG_HOMER.Window:EditOpenButton({
-    Title = "Open AHG HUB",
+    Title = "Open AHG VS HOMER",
     Icon = "skull",
     CornerRadius = UDim.new(0, 16),
     StrokeThickness = 3,
@@ -446,7 +446,7 @@ UserInputService.JumpRequest:Connect(function()
 end)
 
 -- ============================================
--- FUNCAO RITUAL HOMER (CORRIGIDO)
+-- RITUAL HOMER
 -- ============================================
 local function ExecutarRitual()
     local char = LocalPlayer.Character
@@ -473,7 +473,7 @@ local function ExecutarRitual()
 end
 
 -- ============================================
--- FUNCAO FARM DE MOEDAS
+-- FARM DE MOEDAS
 -- ============================================
 local FarmPos = CFrame.new(-32.1, 212.6, 111.0)
 
@@ -484,27 +484,35 @@ local function FarmCoin()
 end
 
 -- ============================================
--- FUNCAO KILL ALL (HOMER)
+-- KILL ALL (VERSAO PROFISSIONAL)
 -- ============================================
 local function KillAll()
-    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not root then return end
+    local myChar = LocalPlayer.Character
+    if not myChar or not myChar:FindFirstChild("Torso") then 
+        AHG_HOMER.Window:Notify({
+            Title = "ERRO",
+            Content = "Personagem nao encontrado!",
+            Duration = 3,
+            Icon = "alert-circle",
+        })
+        return 
+    end
     
-    local oldPos = root.CFrame
+    local oldPos = myChar.Torso.CFrame
     local killed = 0
     
-    for _, pl in pairs(Players:GetPlayers()) do
-        if pl ~= LocalPlayer and pl.Character and pl.Character:FindFirstChild("HumanoidRootPart") then
-            local targetTeam = AHG_HOMER.GetPlayerTeam(pl)
-            if targetTeam == "Bart" then
-                root.CFrame = pl.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 2)
-                task.wait(0.5)
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Team and p.Team.Name:sub(1,1):lower() == "b" and p.Character and p.Character:FindFirstChild("Torso") then
+            local name = string.lower(p.Name)
+            if name ~= "packj0" and name ~= "kit_cynalt" and name ~= "bk_faxbr" then
+                myChar.Torso.CFrame = CFrame.new(p.Character.Torso.Position + Vector3.new(0, 1, 0))
+                task.wait(0.1)
                 killed = killed + 1
             end
         end
     end
     
-    root.CFrame = oldPos
+    myChar.Torso.CFrame = oldPos
     
     AHG_HOMER.Window:Notify({
         Title = "KILL ALL",
@@ -752,7 +760,7 @@ WindUI:Notify({
     Title = "AHG HUB",
     Content = "Script carregado com sucesso! [BETA]",
     Duration = 5,
-    Icon = "skull",
+    Icon = "star",
 })
 
 print("AHG HUB | YOU VS HOMER [BETA] - Carregado!")
