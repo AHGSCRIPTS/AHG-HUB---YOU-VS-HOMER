@@ -1,4 +1,4 @@
---[[
+-- [[
     ════════════════════════════════════════════════
     █████╗ ██╗  ██╗ ██████╗     ██╗  ██╗██╗   ██╗██████╗ 
     ██╔══██╗██║  ██║██╔════╝     ██║  ██║██║   ██║██╔══██╗
@@ -63,7 +63,7 @@ AHG_HOMER.OriginalBrightness = game:GetService("Lighting").Brightness
 AHG_HOMER.OriginalAmbient = game:GetService("Lighting").Ambient
 AHG_HOMER.OriginalOutdoorAmbient = game:GetService("Lighting").OutdoorAmbient
 
--- TEMA AZUL E PRETO (BASEADO NO FPS FLICK)
+-- TEMA AZUL E PRETO
 WindUI:AddTheme({
     Name = "AHG Blue & Black Theme",
 
@@ -155,14 +155,14 @@ AHG_HOMER.Window = WindUI:CreateWindow({
 })
 
 AHG_HOMER.Window:Tag({
-    Title = "AHG HUB V1",
-    Icon = "rocket",
+    Title = "BETA V1.0",
+    Icon = "skull",
     Color = Color3.fromHex("#0b25e3"),
     Radius = 0,
 })
 
 AHG_HOMER.Window:EditOpenButton({
-    Title = "Open AHG VS HOMER",
+    Title = "Open AHG HUB",
     Icon = "skull",
     CornerRadius = UDim.new(0, 16),
     StrokeThickness = 3,
@@ -476,11 +476,29 @@ end
 -- FARM DE MOEDAS
 -- ============================================
 local FarmPos = CFrame.new(-32.1, 212.6, 111.0)
+local Farming = false
 
 local function FarmCoin()
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        LocalPlayer.Character.HumanoidRootPart.CFrame = FarmPos
-    end
+    if Farming then return end
+    Farming = true
+
+    task.spawn(function()
+        while AHG_HOMER.AutoFarmEnabled do
+            local char = LocalPlayer.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local hum = char and char:FindFirstChild("Humanoid")
+
+            if hrp and hum and hum.Health > 0 then
+                local oldCFrame = hrp.CFrame
+                hrp.CFrame = FarmPos
+                task.wait(1.1)
+                hrp.CFrame = oldCFrame
+            end
+
+            task.wait(0.4)
+        end
+        Farming = false
+    end)
 end
 
 -- ============================================
@@ -688,17 +706,14 @@ AHG_HOMER.WallhopSection:Button({
     end
 })
 
-AHG_HOMER.WallhopSection:Button({
-    Title = "FARM DE MOEDAS",
-    Description = "Teleporta para local de farm de moedas",
-    Callback = function()
-        FarmCoin()
-        AHG_HOMER.Window:Notify({
-            Title = "FARM",
-            Content = "Teleportado para farm de moedas!",
-            Duration = 3,
-            Icon = "dollar-sign",
-        })
+AHG_HOMER.WallhopSection:Toggle({
+    Title = "AUTO FARM DE MOEDAS",
+    Description = "Farm automático em loop",
+    Callback = function(state)
+        AHG_HOMER.AutoFarmEnabled = state
+        if state then
+            FarmCoin()
+        end
     end
 })
 
@@ -760,7 +775,7 @@ WindUI:Notify({
     Title = "AHG HUB",
     Content = "Script carregado com sucesso! [BETA]",
     Duration = 5,
-    Icon = "star",
+    Icon = "skull",
 })
 
 print("AHG HUB | YOU VS HOMER [BETA] - Carregado!")
