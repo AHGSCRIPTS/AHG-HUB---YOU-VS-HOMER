@@ -9,20 +9,30 @@
     ════════════════════════════════════════════════
     🎯 YOU VS HOMER [BETA] - AHG HUB
     👤 By AHG TEAM
-    📅 Versão: BETA 1.5.0 - FIX UIStroke 03/02/2026
+    📅 Versão: BETA 1.5.1 - FIX NIL + UIStroke 03/02/2026
     ════════════════════════════════════════════════
 ]]--
 
 getgenv().AHG_HOMER = getgenv().AHG_HOMER or {}
 
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+print("[AHG DEBUG] Iniciando...")
 
-if not WindUI then return end
+local success, WindUI = pcall(function()
+    return loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/main.lua"))()
+end)
+
+if not success or type(WindUI) ~= "table" then
+    warn("[AHG ERRO] WindUI falhou! Motivo: " .. tostring(WindUI))
+    return  -- Para evitar nil value crash
+end
+
+print("[AHG DEBUG] WindUI carregado OK!")
 
 -- PATCH AHG: Cria UIStroke faltantes no numpad virtual da WindUI (fix erro linha ~2684)
 spawn(function()
-    task.wait(1.5)  -- Espera UI carregar completamente
-    local pgui = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+    task.wait(2)  -- Aumentado para dar mais tempo
+    local pgui = game.Players.LocalPlayer:WaitForChild("PlayerGui", 10)
+    if not pgui then warn("[AHG] PlayerGui não encontrado!") return end
     
     local function criarStrokeSeFaltar(botao)
         if not botao or not botao:IsA("TextButton") then return end
@@ -101,7 +111,7 @@ AHG_HOMER.OriginalBrightness = game:GetService("Lighting").Brightness
 AHG_HOMER.OriginalAmbient = game:GetService("Lighting").Ambient
 AHG_HOMER.OriginalOutdoorAmbient = game:GetService("Lighting").OutdoorAmbient
 
--- TEMA AZUL E PRETO (mantido igual)
+-- TEMA AZUL E PRETO
 WindUI:AddTheme({
     Name = "AHG Blue & Black Theme",
     Accent = WindUI:Gradient({
@@ -329,7 +339,7 @@ function AHG_HOMER.UpdateESP()
             end
         end
         
-        -- Name (continuação da função UpdateESP)
+        -- Name
         if settings.Name then
             if not esp.Name then
                 esp.Name = Drawing.new("Text")
@@ -534,4 +544,4 @@ WindUI:Notify({
     Duration = 5
 })
 
-print("[AHG HUB] Script FIXADO e carregado!")
+print("[AHG HUB] Script finalizado e pronto!")
