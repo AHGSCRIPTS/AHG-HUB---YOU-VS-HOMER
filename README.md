@@ -1,345 +1,155 @@
--- [[
-    ════════════════════════════════════════════════
-    █████╗ ██╗  ██╗ ██████╗     ██╗  ██╗██╗   ██╗██████╗ 
-    ██╔══██╗██║  ██║██╔════╝     ██║  ██║██║   ██║██╔══██╗
-    ███████║███████║██║  ███╗    ███████║██║   ██║██████╔╝
-    ██╔══██║██╔══██║██║   ██║    ██╔══██║██║   ██║██╔══██╗
-    ██║  ██║██║  ██║╚██████╔╝    ██║  ██║╚██████╔╝██████╔╝
-    ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝     ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ 
-    ════════════════════════════════════════════════
-    🎯 YOU VS HOMER [BETA] - AHG HUB
-    👤 By AHG TEAM
-    📅 Versão: BETA 1.5.1 - FIX NIL + UIStroke 03/02/2026
-    ════════════════════════════════════════════════
-]]--
+-- AHG HUB - YOU VS HOMER [V1] - (Créditos ao Joãozinho por ter me ajudado no script)
 
-getgenv().AHG_HOMER = getgenv().AHG_HOMER or {}
+local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/Seven7-lua/Roblox/refs/heads/main/Librarys/Orion/Orion.lua')))()
 
-print("[AHG DEBUG] Iniciando...")
-
-local success, WindUI = pcall(function()
-    return loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/main.lua"))()
-end)
-
-if not success or type(WindUI) ~= "table" then
-    warn("[AHG ERRO] WindUI falhou! Motivo: " .. tostring(WindUI))
-    return  -- Para evitar nil value crash
+-- Bypass anti-cheat local
+local ps = game:GetService("Players").LocalPlayer.PlayerScripts
+local ACtable = {  
+    ps:FindFirstChild("QuitsAntiCheatChecker"),  
+    ps:FindFirstChild("QuitsAntiCheatLocal")  
+}  
+for _, v in pairs(ACtable) do  
+    if v then v:Destroy() end  
 end
-
-print("[AHG DEBUG] WindUI carregado OK!")
-
--- PATCH AHG: Cria UIStroke faltantes no numpad virtual da WindUI (fix erro linha ~2684)
-spawn(function()
-    task.wait(2)  -- Aumentado para dar mais tempo
-    local pgui = game.Players.LocalPlayer:WaitForChild("PlayerGui", 10)
-    if not pgui then warn("[AHG] PlayerGui não encontrado!") return end
-    
-    local function criarStrokeSeFaltar(botao)
-        if not botao or not botao:IsA("TextButton") then return end
-        if botao:FindFirstChild("UIStroke") then return end
-        
-        local stroke = Instance.new("UIStroke")
-        stroke.Name = "UIStroke"
-        stroke.Parent = botao
-        stroke.Color = Color3.fromRGB(255, 255, 0)  -- Amarelo como no seu print original
-        stroke.Thickness = 2
-        stroke.Transparency = 0
-        stroke.Enabled = true
-    end
-    
-    -- Fix inicial nos botões existentes
-    for _, nome in pairs({"One", "Two", "Three", "Four", "Five"}) do
-        for _, obj in pairs(pgui:GetDescendants()) do
-            if obj.Name == nome then
-                criarStrokeSeFaltar(obj)
-            end
-        end
-    end
-    
-    -- Monitora novos botões criados (quando abre sliders/keybinds)
-    pgui.DescendantAdded:Connect(function(child)
-        if child:IsA("TextButton") and table.find({"One","Two","Three","Four","Five"}, child.Name) then
-            task.wait(0.2)
-            criarStrokeSeFaltar(child)
-        end
-    end)
-    
-    print("[AHG HUB] Patch UIStroke aplicado - erros de WindUI corrigidos!")
-end)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- Configuracoes ESP
-AHG_HOMER.ESPEnabled = {
-    Bart = false,
-    Homer = false
+-- Configs
+local ESPEnabled = { Bart = false, Homer = false }
+local ESPSettings = {
+    Bart = { Outline = false, Box = false, Name = false, Tracers = false, Color = Color3.fromRGB(41, 237, 19) },
+    Homer = { Outline = false, Box = false, Name = false, Tracers = false, Color = Color3.fromRGB(227, 11, 11) }
+}
+local ESPObjects = {}
+
+local WallhopEnabled = false
+local WallhopSettings = { JumpHeight = 52, DetectDist = 4.8, FlickAngle = 45, RecoverySpeed = 0.15 }
+local lastJump = 0
+
+local FullbrightEnabled = false
+local SprintEnabled = false
+local SprintSpeed = 22.4
+
+local AutoFarmEnabled = false
+local AutoKillEnabled = false
+
+local originalLighting = {
+    Brightness = Lighting.Brightness,
+    Ambient = Lighting.Ambient,
+    OutdoorAmbient = Lighting.OutdoorAmbient,
+    ClockTime = Lighting.ClockTime,
+    FogEnd = Lighting.FogEnd,
+    GlobalShadows = Lighting.GlobalShadows
 }
 
-AHG_HOMER.ESPSettings = {
-    Bart = {
-        Outline = false,
-        Box = false,
-        Name = false,
-        Tracers = false,
-        Color = Color3.fromHex("#29ed13")
-    },
-    Homer = {
-        Outline = false,
-        Box = false,
-        Name = false,
-        Tracers = false,
-        Color = Color3.fromHex("#e30b0b")
-    }
-}
-
-AHG_HOMER.ESPObjects = {}
-
--- Configuracoes Wallhop
-AHG_HOMER.WallhopEnabled = false
-
--- Configuracoes Speed
-AHG_HOMER.SpeedEnabled = false
-AHG_HOMER.SpeedMult = 1.4
-
--- Configuracoes Fullbright
-AHG_HOMER.FullbrightEnabled = false
-AHG_HOMER.OriginalBrightness = game:GetService("Lighting").Brightness
-AHG_HOMER.OriginalAmbient = game:GetService("Lighting").Ambient
-AHG_HOMER.OriginalOutdoorAmbient = game:GetService("Lighting").OutdoorAmbient
-
--- TEMA AZUL E PRETO
-WindUI:AddTheme({
-    Name = "AHG Blue & Black Theme",
-    Accent = WindUI:Gradient({
-        ["0"] = { Color = Color3.fromHex("#0b25e3"), Transparency = 0 },
-        ["100"] = { Color = Color3.fromHex("#000000"), Transparency = 0 },
-    }, { Rotation = 45, }),
-    Background = Color3.fromHex("#0a0a0a"),
-    BackgroundTransparency = 0,
-    Outline = WindUI:Gradient({
-        ["0"] = { Color = Color3.fromHex("#0b25e3"), Transparency = 0 },
-        ["50"] = { Color = Color3.fromHex("#0820b3"), Transparency = 0 },
-        ["100"] = { Color = Color3.fromHex("#061a83"), Transparency = 0 },
-    }, { Rotation = 90, }),
-    Text = Color3.fromHex("#FFFFFF"),
-    Placeholder = Color3.fromHex("#7a7a7a"),
-    Button = Color3.fromHex("#1a1a1a"),
-    Icon = Color3.fromHex("#0b25e3"),
-    Hover = Color3.fromHex("#0b25e3"),
-    WindowBackground = Color3.fromHex("#0a0a0a"),
-    WindowShadow = Color3.fromHex("#000000"),
-    DialogBackground = Color3.fromHex("#0a0a0a"),
-    DialogBackgroundTransparency = 0,
-    DialogTitle = Color3.fromHex("#FFFFFF"),
-    DialogContent = Color3.fromHex("#FFFFFF"),
-    DialogIcon = Color3.fromHex("#0b25e3"),
-    WindowTopbarButtonIcon = Color3.fromHex("#0b25e3"),
-    WindowTopbarTitle = Color3.fromHex("#FFFFFF"),
-    WindowTopbarAuthor = Color3.fromHex("#0b25e3"),
-    WindowTopbarIcon = Color3.fromHex("#0b25e3"),
-    TabBackground = WindUI:Gradient({
-        ["0"] = { Color = Color3.fromHex("#1a1a1a"), Transparency = 0 },
-        ["100"] = { Color = Color3.fromHex("#0f0f0f"), Transparency = 0 },
-    }, { Rotation = 0, }),
-    TabTitle = Color3.fromHex("#FFFFFF"),
-    TabIcon = Color3.fromHex("#0b25e3"),
-    ElementBackground = Color3.fromHex("#1a1a1a"),
-    ElementTitle = Color3.fromHex("#FFFFFF"),
-    ElementDesc = Color3.fromHex("#AAAAAA"),
-    ElementIcon = Color3.fromHex("#0b25e3"),
-    PopupBackground = Color3.fromHex("#0a0a0a"),
-    PopupBackgroundTransparency = 0,
-    PopupTitle = Color3.fromHex("#FFFFFF"),
-    PopupContent = Color3.fromHex("#FFFFFF"),
-    PopupIcon = Color3.fromHex("#0b25e3"),
-    Toggle = Color3.fromHex("#1a1a1a"),
-    ToggleBar = WindUI:Gradient({
-        ["0"] = { Color = Color3.fromHex("#0b25e3"), Transparency = 0 },
-        ["100"] = { Color = Color3.fromHex("#0820b3"), Transparency = 0 },
-    }, { Rotation = 0, }),
-    Checkbox = Color3.fromHex("#1a1a1a"),
-    CheckboxIcon = Color3.fromHex("#0b25e3"),
-    Slider = Color3.fromHex("#1a1a1a"),
-    SliderThumb = WindUI:Gradient({
-        ["0"] = { Color = Color3.fromHex("#0b25e3"), Transparency = 0 },
-        ["100"] = { Color = Color3.fromHex("#0614a3"), Transparency = 0 },
-    }, { Rotation = 45, }),
-})
-
--- CRIAR JANELA
-AHG_HOMER.Window = WindUI:CreateWindow({
-    Title = "AHG HUB | YOU VS HOMER",
-    Author = "By AHG TEAM",
-    Size = UDim2.new(0, 500, 0, 400),
-    Theme = "AHG Blue & Black Theme",
-    Keybind = Enum.KeyCode.RightControl,
-})
-
-AHG_HOMER.Window:Tag({
-    Title = "BETA V1.0",
-    Icon = "skull",
-    Color = Color3.fromHex("#0b25e3"),
-    Radius = 0,
-})
-
-AHG_HOMER.Window:EditOpenButton({
-    Title = "Open AHG HUB",
-    Icon = "skull",
-    CornerRadius = UDim.new(0, 16),
-    StrokeThickness = 3,
-    Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromHex("#0b25e3")),
-        ColorSequenceKeypoint.new(0.5, Color3.fromHex("#0820b3")),
-        ColorSequenceKeypoint.new(1, Color3.fromHex("#000000"))
-    }),
-    Enabled = true,
-    Draggable = true,
-})
-
--- CRIAR ABAS
-AHG_HOMER.TabESP = AHG_HOMER.Window:Tab({Title = "ESP", Icon = "eye"})
-AHG_HOMER.TabHacks = AHG_HOMER.Window:Tab({Title = "HACKS", Icon = "zap"})
-
--- FUNCOES ESP (OTIMIZADAS)
-function AHG_HOMER.CreateESP(player)
-    if AHG_HOMER.ESPObjects[player] then return end
-    AHG_HOMER.ESPObjects[player] = {
-        Outline = nil,
-        Box = {},
-        Name = nil,
-        Tracer = nil
-    }
-end
-
-function AHG_HOMER.RemoveESP(player)
-    if not AHG_HOMER.ESPObjects[player] then return end
-    
-    local esp = AHG_HOMER.ESPObjects[player]
-    
-    if esp.Outline then 
-        pcall(function() esp.Outline:Destroy() end)
-    end
-    
-    for _, line in pairs(esp.Box) do
-        pcall(function() line:Remove() end)
-    end
-    
-    if esp.Name then 
-        pcall(function() esp.Name:Remove() end)
-    end
-    
-    if esp.Tracer then 
-        pcall(function() esp.Tracer:Remove() end)
-    end
-    
-    AHG_HOMER.ESPObjects[player] = nil
-end
-
-function AHG_HOMER.GetPlayerTeam(player)
-    if not player.Team then return nil end
-    
-    local teamName = string.lower(player.Team.Name)
-    
-    if string.find(teamName, "bart") then
-        return "Bart"
-    elseif string.find(teamName, "homer") then
-        return "Homer"
-    end
-    
+local function GetPlayerTeam(player)
+    if not player or not player.Team or not player.Team.Name then return nil end
+    local tn = player.Team.Name:lower()
+    if tn:find("bart") then return "Bart" end
+    if tn:find("homer") then return "Homer" end
     return nil
 end
 
-function AHG_HOMER.UpdateESP()
-    for _, player in pairs(Players:GetPlayers()) do
+local function CreateESP(player)
+    if ESPObjects[player] then return end
+    ESPObjects[player] = { Outline = nil, Box = {}, Name = nil, Tracer = nil }
+end
+
+local function RemoveESP(player)
+    local esp = ESPObjects[player]
+    if not esp then return end
+    if esp.Outline then pcall(function() esp.Outline:Destroy() end) end
+    for _, line in pairs(esp.Box) do pcall(function() line:Remove() end) end
+    if esp.Name then pcall(function() esp.Name:Remove() end) end
+    if esp.Tracer then pcall(function() esp.Tracer:Remove() end) end
+    ESPObjects[player] = nil
+end
+
+local function UpdateESP()
+    for _, player in ipairs(Players:GetPlayers()) do
         if player == LocalPlayer then continue end
         
-        local teamType = AHG_HOMER.GetPlayerTeam(player)
-        
-        if not teamType or not AHG_HOMER.ESPEnabled[teamType] or not player.Character then
-            AHG_HOMER.RemoveESP(player)
-            continue
-        end
-        
-        AHG_HOMER.CreateESP(player)
-        
         local char = player.Character
-        local rootPart = char:FindFirstChild("HumanoidRootPart")
-        local head = char:FindFirstChild("Head")
-        local humanoid = char:FindFirstChild("Humanoid")
-        
-        if not rootPart or not head or not humanoid or humanoid.Health <= 0 then
+        if not char or not char:FindFirstChild("Humanoid") or char.Humanoid.Health <= 0 or
+           not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Head") then
+            RemoveESP(player)
             continue
         end
         
-        local settings = AHG_HOMER.ESPSettings[teamType]
-        local esp = AHG_HOMER.ESPObjects[player]
+        local team = GetPlayerTeam(player)
+        if not team or not ESPEnabled[team] then
+            RemoveESP(player)
+            continue
+        end
         
-        -- Outline
+        CreateESP(player)
+        local esp = ESPObjects[player]
+        local root = char.HumanoidRootPart
+        local head = char.Head
+        local settings = ESPSettings[team]
+        local color = settings.Color
+        
+        local rootPos, onScreen = Camera:WorldToViewportPoint(root.Position)
+        if not onScreen then
+            if esp.Outline then esp.Outline.Enabled = false end
+            for _, line in pairs(esp.Box) do line.Visible = false end
+            if esp.Name then esp.Name.Visible = false end
+            if esp.Tracer then esp.Tracer.Visible = false end
+            continue
+        end
+        
         if settings.Outline then
             if not esp.Outline then
                 esp.Outline = Instance.new("Highlight")
                 esp.Outline.Parent = char
+                esp.Outline.Adornee = char
+                esp.Outline.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                 esp.Outline.FillTransparency = 1
                 esp.Outline.OutlineTransparency = 0.5
             end
-            esp.Outline.OutlineColor = settings.Color
+            esp.Outline.OutlineColor = color
             esp.Outline.Enabled = true
         elseif esp.Outline then
             esp.Outline.Enabled = false
         end
         
-        -- Box
         if settings.Box then
             if #esp.Box == 0 then
                 for i = 1, 4 do
                     local line = Drawing.new("Line")
                     line.Thickness = 2
                     line.Transparency = 1
-                    table.insert(esp.Box, line)
+                    esp.Box[i] = line
                 end
             end
-            
-            local pos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
-            
-            if onScreen then
-                local headPos = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
-                local legPos = Camera:WorldToViewportPoint(rootPart.Position - Vector3.new(0, 3, 0))
-                local height = math.abs(headPos.Y - legPos.Y)
-                local width = height * 0.5
-                
-                esp.Box[1].From = Vector2.new(pos.X - width, headPos.Y)
-                esp.Box[1].To = Vector2.new(pos.X + width, headPos.Y)
-                esp.Box[1].Color = settings.Color
-                esp.Box[1].Visible = true
-                
-                esp.Box[2].From = Vector2.new(pos.X - width, legPos.Y)
-                esp.Box[2].To = Vector2.new(pos.X + width, legPos.Y)
-                esp.Box[2].Color = settings.Color
-                esp.Box[2].Visible = true
-                
-                esp.Box[3].From = Vector2.new(pos.X - width, headPos.Y)
-                esp.Box[3].To = Vector2.new(pos.X - width, legPos.Y)
-                esp.Box[3].Color = settings.Color
-                esp.Box[3].Visible = true
-                
-                esp.Box[4].From = Vector2.new(pos.X + width, headPos.Y)
-                esp.Box[4].To = Vector2.new(pos.X + width, legPos.Y)
-                esp.Box[4].Color = settings.Color
-                esp.Box[4].Visible = true
-            else
-                for _, line in pairs(esp.Box) do line.Visible = false end
+            local headPos = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
+            local legPos = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
+            local height = math.abs(headPos.Y - legPos.Y)
+            local width = height * 0.5
+            local lines = esp.Box
+            lines[1].From = Vector2.new(rootPos.X - width, headPos.Y)
+            lines[1].To = Vector2.new(rootPos.X + width, headPos.Y)
+            lines[2].From = Vector2.new(rootPos.X - width, legPos.Y)
+            lines[2].To = Vector2.new(rootPos.X + width, legPos.Y)
+            lines[3].From = Vector2.new(rootPos.X - width, headPos.Y)
+            lines[3].To = Vector2.new(rootPos.X - width, legPos.Y)
+            lines[4].From = Vector2.new(rootPos.X + width, headPos.Y)
+            lines[4].To = Vector2.new(rootPos.X + width, legPos.Y)
+            for _, line in pairs(lines) do
+                line.Color = color
+                line.Visible = true
             end
-        else
-            for _, line in pairs(esp.Box) do
-                if line then line.Visible = false end
-            end
+        elseif #esp.Box > 0 then
+            for _, line in pairs(esp.Box) do line.Visible = false end
         end
         
-        -- Name
+        local distance = math.floor((LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and 
+                                     (root.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude) or 0)
         if settings.Name then
             if not esp.Name then
                 esp.Name = Drawing.new("Text")
@@ -347,201 +157,590 @@ function AHG_HOMER.UpdateESP()
                 esp.Name.Outline = true
                 esp.Name.Size = 13
             end
-            
-            local pos, onScreen = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 1.5, 0))
-            
-            if onScreen then
-                local distance = 0
-                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    distance = (rootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-                end
-                
-                esp.Name.Text = player.Name .. " | " .. math.floor(distance) .. "M"
-                esp.Name.Color = settings.Color
-                esp.Name.Position = Vector2.new(pos.X, pos.Y)
-                esp.Name.Visible = true
-            else
-                esp.Name.Visible = false
-            end
+            local headPos = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 1.5, 0))
+            esp.Name.Text = player.Name .. " | " .. distance .. "M"
+            esp.Name.Position = Vector2.new(headPos.X, headPos.Y)
+            esp.Name.Color = color
+            esp.Name.Visible = true
         elseif esp.Name then
             esp.Name.Visible = false
         end
         
-        -- Tracers
         if settings.Tracers then
             if not esp.Tracer then
                 esp.Tracer = Drawing.new("Line")
-                esp.Tracer.Thickness = 2
+                esp.Tracer.Thickness = 1
+                esp.Tracer.Transparency = 1
             end
-            
-            local pos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
-            
-            if onScreen then
-                esp.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
-                esp.Tracer.To = Vector2.new(pos.X, pos.Y)
-                esp.Tracer.Color = settings.Color
-                esp.Tracer.Visible = true
-            else
-                esp.Tracer.Visible = false
-            end
+            esp.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+            esp.Tracer.To = Vector2.new(rootPos.X, rootPos.Y)
+            esp.Tracer.Color = color
+            esp.Tracer.Visible = true
         elseif esp.Tracer then
             esp.Tracer.Visible = false
         end
     end
 end
 
--- LOOP DE UPDATE ESP (otimizado 60fps cap)
-local lastESP = 0
 RunService.RenderStepped:Connect(function()
-    if tick() - lastESP >= 0.016 then  -- ~60fps
-        pcall(AHG_HOMER.UpdateESP)
-        lastESP = tick()
+    pcall(UpdateESP)
+end)
+
+Players.PlayerRemoving:Connect(RemoveESP)
+
+-- TAGS DE RANK (OWNER e VIP)
+local WhitelistTags = {
+    ["PokitoJR"] = {tag = "OWNER", color = Color3.fromHex("#1b0cf0")},
+    ["joaaa012333"] = {tag = "OWNER", color = Color3.fromHex("#1b0cf0")},
+    -- VIPs (vazio por enquanto)
+}
+
+local function AddRankTag(player)
+    if player == LocalPlayer then return end
+
+    local tagData = WhitelistTags[player.Name] or WhitelistTags[player.UserId]
+    if not tagData then return end
+
+    local function applyTag(char)
+        local head = char:WaitForChild("Head", 5)
+        if not head then return end
+
+        local billboard = head:FindFirstChild("RankTagGui") or Instance.new("BillboardGui")
+        billboard.Name = "RankTagGui"
+        billboard.Adornee = head
+        billboard.Size = UDim2.new(0, 220, 0, 80)
+        billboard.StudsOffset = Vector3.new(0, 4, 0)
+        billboard.AlwaysOnTop = true
+        billboard.ResetOnSpawn = false
+        billboard.Parent = head
+
+        local nameLabel = billboard:FindFirstChild("NameLabel") ") or Instance.new("TextLabel")
+        nameLabel.Name = "NameLabel"
+        nameLabel.Parent = billboard
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+        nameLabel.Position = UDim2.new(0, 0, 0, 0)
+        nameLabel.Text = player.Name
+        nameLabel.TextColor3 = tagData.color
+        nameLabel.TextStrokeTransparency = 0.6
+        nameLabel.TextScaled = true
+        nameLabel.Font = Enum.Font.GothamBold
+        nameLabel.TextXAlignment = Enum.TextXAlignment.Center
+
+        local tagLabel = billboard:FindFirstChild("TagLabel") or Instance.new("TextLabel")
+        tagLabel.Name = "TagLabel"
+        tagLabel.Parent = billboard
+        tagLabel.BackgroundTransparency = 1
+        tagLabel.Size = UDim2.new(1, 0, 0.5, 0)
+        tagLabel.Position = UDim2.new(0, 0, 0.5, 0)
+        tagLabel.Text = tagData.tag
+        tagLabel.TextColor3 = tagData.color
+        tagLabel.TextStrokeTransparency = 0.6
+        tagLabel.TextScaled = true
+        tagLabel.Font = Enum.Font.GothamSemibold
+        tagLabel.TextXAlignment = Enum.TextXAlignment.Center
+    end
+
+    if player.Character then
+        applyTag(player.Character)
+    end
+    player.CharacterAdded:Connect(applyTag)
+end
+
+for _, player in ipairs(Players:GetPlayers()) do
+    AddRankTag(player)
+end
+Players.PlayerAdded:Connect(AddRankTag)
+
+ local function ExecutarRitualHomer()
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChild("Humanoid")
+    if not (root and hum) then return end
+
+    task.spawn(function()
+        local bg = Instance.new("BodyAngularVelocity")
+        bg.AngularVelocity = Vector3.new(0, 10, 0)
+        bg.MaxTorque = Vector3.new(0, 9e9, 0)
+        bg.Parent = root
+
+        task.wait(1)
+        bg.AngularVelocity = Vector3.new(0, 50, 0)
+
+        local bv = Instance.new("BodyVelocity")
+        bv.Velocity = Vector3.new(0, 15, 0)
+        bv.MaxForce = Vector3.new(0, 9e9, 0)
+        bv.Parent = root
+
+        task.wait(2)
+        bv:Destroy()
+        bg:Destroy()
+        hum.Health = 0
+    end)
+end
+
+-- DisableFullbright
+local function DisableFullbright()
+    Lighting.Brightness = originalLighting.Brightness
+    Lighting.Ambient = originalLighting.Ambient
+    Lighting.OutdoorAmbient = originalLighting.OutdoorAmbient
+    Lighting.ClockTime = originalLighting.ClockTime
+    Lighting.FogEnd = originalLighting.FogEnd
+    Lighting.GlobalShadows = originalLighting.GlobalShadows
+end
+
+-- Wallhop
+local function getWallInfo()
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil, nil end
+    
+    local params = RaycastParams.new()
+    params.FilterDescendantsInstances = {char}
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    
+    local directions = {
+        ["F"] = root.CFrame.LookVector,
+        ["L"] = -root.CFrame.RightVector,
+        ["R"] = root.CFrame.RightVector,
+        ["B"] = -root.CFrame.LookVector
+    }
+    
+    for side, dir in pairs(directions) do
+        local result = workspace:Raycast(root.Position, dir * WallhopSettings.DetectDist, params)
+        if result and result.Instance and result.Instance.CanCollide then
+            return result.Normal, side
+        end
+    end
+    return nil, nil
+end
+
+local function applyFlick(root, side)
+    local angle = math.rad(WallhopSettings.FlickAngle)
+    if side == "B" then angle = -angle * 1.2 end
+    if side == "R" then angle = -angle end
+    
+    root.CFrame = root.CFrame * CFrame.Angles(0, angle, 0)
+    
+    task.spawn(function()
+        task.wait(0.05)
+        local start = tick()
+        while tick() - start < WallhopSettings.RecoverySpeed do
+            local look = Camera.CFrame.LookVector
+            local target = CFrame.new(root.Position, root.Position + Vector3.new(look.X, 0, look.Z))
+            root.CFrame = root.CFrame:Lerp(target, 0.18)
+            RunService.RenderStepped:Wait()
+        end
+    end)
+end
+
+UserInputService.JumpRequest:Connect(function()
+    if not WallhopEnabled then return end
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChild("Humanoid")
+    if not (root and hum) or (tick() - lastJump < 0.18) then return end
+    local normal, side = getWallInfo()
+    if normal then
+        lastJump = tick()
+        hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        root.Velocity = Vector3.new(root.Velocity.X, WallhopSettings.JumpHeight, root.Velocity.Z)
+        applyFlick(root, side)
     end
 end)
 
--- LOOP PRINCIPAL (Speed, Fullbright, Wallhop)
-RunService.Heartbeat:Connect(function()
-    local char = LocalPlayer.Character
-    if not char then return end
-    local hum = char:FindFirstChild("Humanoid")
-    if not hum then return end
-    
-    -- Speed
-    if AHG_HOMER.SpeedEnabled then
-        hum.WalkSpeed = 16 * AHG_HOMER.SpeedMult
-    end
-    
-    -- Fullbright (protege contra reset do jogo)
-    if AHG_HOMER.FullbrightEnabled then
-        local lighting = game.Lighting
-        lighting.Brightness = 2
-        lighting.ClockTime = 14
-        lighting.FogEnd = 100000
-        lighting.GlobalShadows = false
-        lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
-        lighting.Ambient = Color3.fromRGB(178, 178, 178)
-    end
-    
-    -- Wallhop (raycast simples pra boost em parede)
-    if AHG_HOMER.WallhopEnabled and hum:GetState() == Enum.HumanoidStateType.Jumping then
-        local root = char:FindFirstChild("HumanoidRootPart")
-        if root then
-            local rayParams = RaycastParams.new()
-            rayParams.FilterDescendantsInstances = {char}
-            rayParams.FilterType = Enum.RaycastFilterType.Exclude
-            local ray = workspace:Raycast(root.Position, root.CFrame.LookVector * 5, rayParams)
-            if ray then
-                root.Velocity = Vector3.new(root.Velocity.X * 1.1, 50, root.Velocity.Z * 1.1)
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed or not WallhopEnabled then return end
+    if input.KeyCode == Enum.KeyCode.B then
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChild("Humanoid")
+        if hum and hum:GetState() == Enum.HumanoidStateType.Jumping then
+            local normal, side = getWallInfo()
+            if normal and side == "B" then
+                local root = char.HumanoidRootPart
+                lastJump = tick()
+                hum:ChangeState(Enum.HumanoidStateType.Jumping)
+                root.Velocity = Vector3.new(root.Velocity.X * 0.8, WallhopSettings.JumpHeight * 1.1, root.Velocity.Z * 0.8)
+                applyFlick(root, "B")
             end
         end
     end
 end)
 
--- TOGGLES E ELEMENTOS NA TAB ESP
-local BartSection = AHG_HOMER.TabESP:Section({Title = "Bart ESP"})
-BartSection:Toggle({
-    Title = "ATIVAR ESP DO BART",
-    Default = false,
-    Callback = function(v) AHG_HOMER.ESPEnabled.Bart = v end
-})
-BartSection:Toggle({
-    Title = "ESP OUTLINE",
-    Default = false,
-    Callback = function(v) AHG_HOMER.ESPSettings.Bart.Outline = v end
-})
-BartSection:Toggle({
-    Title = "ESP BOX",
-    Default = false,
-    Callback = function(v) AHG_HOMER.ESPSettings.Bart.Box = v end
-})
-BartSection:Toggle({
-    Title = "ESP NAME",
-    Default = false,
-    Callback = function(v) AHG_HOMER.ESPSettings.Bart.Name = v end
-})
-BartSection:Toggle({
-    Title = "ESP TRACERS",
-    Default = false,
-    Callback = function(v) AHG_HOMER.ESPSettings.Bart.Tracers = v end
-})
-BartSection:ColorPicker({
-    Title = "COR DO ESP",
-    Default = Color3.fromHex("#29ed13"),
-    Callback = function(c) AHG_HOMER.ESPSettings.Bart.Color = c end
-})
-
-local HomerSection = AHG_HOMER.TabESP:Section({Title = "Homer ESP"})
-HomerSection:Toggle({
-    Title = "ATIVAR ESP DO HOMER",
-    Default = false,
-    Callback = function(v) AHG_HOMER.ESPEnabled.Homer = v end
-})
-HomerSection:Toggle({
-    Title = "ESP OUTLINE",
-    Default = false,
-    Callback = function(v) AHG_HOMER.ESPSettings.Homer.Outline = v end
-})
-HomerSection:Toggle({
-    Title = "ESP BOX",
-    Default = false,
-    Callback = function(v) AHG_HOMER.ESPSettings.Homer.Box = v end
-})
-HomerSection:Toggle({
-    Title = "ESP NAME",
-    Default = false,
-    Callback = function(v) AHG_HOMER.ESPSettings.Homer.Name = v end
-})
-HomerSection:Toggle({
-    Title = "ESP TRACERS",
-    Default = false,
-    Callback = function(v) AHG_HOMER.ESPSettings.Homer.Tracers = v end
-})
-HomerSection:ColorPicker({
-    Title = "COR DO ESP",
-    Default = Color3.fromHex("#e30b0b"),
-    Callback = function(c) AHG_HOMER.ESPSettings.Homer.Color = c end
-})
-
--- TAB HACKS
-local HacksSection = AHG_HOMER.TabHacks:Section({Title = "Movement & Visuals"})
-HacksSection:Toggle({
-    Title = "WALLHOP",
-    Default = false,
-    Callback = function(v) AHG_HOMER.WallhopEnabled = v end
-})
-HacksSection:Toggle({
-    Title = "VELOCIDADE",
-    Default = false,
-    Callback = function(v) AHG_HOMER.SpeedEnabled = v end
-})
-HacksSection:Slider({
-    Title = "Speed Multiplier",
-    Min = 1,
-    Max = 5,
-    Default = 1.4,
-    Increment = 0.1,
-    Callback = function(v) AHG_HOMER.SpeedMult = v end
-})
-HacksSection:Toggle({
-    Title = "FULLBRIGHT",
-    Default = false,
-    Callback = function(v)
-        AHG_HOMER.FullbrightEnabled = v
-        if not v then
-            local lighting = game.Lighting
-            lighting.Brightness = AHG_HOMER.OriginalBrightness
-            lighting.Ambient = AHG_HOMER.OriginalAmbient
-            lighting.OutdoorAmbient = AHG_HOMER.OriginalOutdoorAmbient
-            lighting.GlobalShadows = true
+-- Auto Farm
+local FarmPos = CFrame.new(-32, 232, 110)
+local function startAutoFarm()
+    task.spawn(function()
+        while AutoFarmEnabled do
+            local char = LocalPlayer.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                char.HumanoidRootPart.CFrame = FarmPos
+                task.wait(0.3)
+            end
+            task.wait(5.3)
         end
+    end)
+end
+
+-- Auto Kill
+local ignoredPlayers = {"packj0", "kit_cynalt", "bk_faxbr"}
+local function startAutoKill()
+    task.spawn(function()
+        while AutoKillEnabled do
+            if not LocalPlayer.Team or LocalPlayer.Team.Name:lower():sub(1,1) ~= "h" then
+                AutoKillEnabled = false
+                OrionLib:MakeNotification({Name = "AHG HUB", Content = "Precisa estar no time Homer!", Time = 5})
+                break
+            end
+            local char = LocalPlayer.Character
+            if not char or not char:FindFirstChild("HumanoidRootPart") then task.wait(0.5) continue end
+            local hrp = char.HumanoidRootPart
+            local oldCFrame = hrp.CFrame
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr ~= LocalPlayer and plr.Team and plr.Team.Name:lower():sub(1,1) == "b" and
+                   plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                    local ln = plr.Name:lower()
+                    if not table.find(ignoredPlayers, ln) then
+                        hrp.CFrame = CFrame.new(plr.Character.HumanoidRootPart.Position + Vector3.new(0, 1, 0))
+                        task.wait(0.08)
+                    end
+                end
+            end
+            hrp.CFrame = oldCFrame
+            task.wait(0.4)
+        end
+    end)
+end
+
+-- Loop principal
+RunService.Heartbeat:Connect(function()
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("Humanoid") then return end
+    local hum = char.Humanoid
+    hum.WalkSpeed = SprintEnabled and SprintSpeed or 16
+    if FullbrightEnabled then
+        Lighting.Brightness = 2
+        Lighting.ClockTime = 14
+        Lighting.FogEnd = 100000
+        Lighting.GlobalShadows = false
+        Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+        Lighting.Ambient = Color3.fromRGB(178, 178, 178)
+    end
+end)
+
+-- UI
+local Window = OrionLib:MakeWindow({
+    Name = "AHG HUB - YOU VS HOMER [V1]",
+    HidePremium = false,
+    SaveConfig = true,
+    ConfigFolder = "AHGHubYouVsHomerV1",
+    IntroEnabled = false
+})
+
+local TabESP = Window:MakeTab({Name = "ESP", Icon = "rbxassetid://4483345998", PremiumOnly = false})
+
+TabESP:AddSection({Name = "ESP Homer"})
+TabESP:AddToggle({Name = "Ativar ESP Homer", Default = false, Callback = function(v) ESPEnabled.Homer = v end})
+TabESP:AddToggle({Name = "Outline", Default = false, Callback = function(v) ESPSettings.Homer.Outline = v end})
+TabESP:AddToggle({Name = "Box", Default = false, Callback = function(v) ESPSettings.Homer.Box = v end})
+TabESP:AddToggle({Name = "Name", Default = false, Callback = function(v) ESPSettings.Homer.Name = v end})
+TabESP:AddToggle({Name = "Tracers", Default = false, Callback = function(v) ESPSettings.Homer.Tracers = v end})
+TabESP:AddColorpicker({
+    Name = "Cor Homer",
+    Default = Color3.fromRGB(227, 11, 11),
+    Flag = "HomerESPColor",
+    Callback = function(Value)
+        ESPSettings.Homer.Color = Value
     end
 })
 
--- NOTIFY FINAL
-WindUI:Notify({
-    Title = "AHG HUB",
-    Content = "Carregado com sucesso! ✅",
-    Duration = 5
+TabESP:AddSection({Name = "ESP Bart"})
+TabESP:AddToggle({Name = "Ativar ESP Bart", Default = false, Callback = function(v) ESPEnabled.Bart = v end})
+TabESP:AddToggle({Name = "Outline", Default = false, Callback = function(v) ESPSettings.Bart.Outline = v end})
+TabESP:AddToggle({Name = "Box", Default = false, Callback = function(v) ESPSettings.Bart.Box = v end})
+TabESP:AddToggle({Name = "Name", Default = false, Callback = function(v) ESPSettings.Bart.Name = v end})
+TabESP:AddToggle({Name = "Tracers", Default = false, Callback = function(v) ESPSettings.Bart.Tracers = v end})
+TabESP:AddColorpicker({
+    Name = "Cor Bart",
+    Default = Color3.fromRGB(41, 237, 19),
+    Flag = "BartESPColor",
+    Callback = function(Value)
+        ESPSettings.Bart.Color = Value
+    end
 })
 
-print("[AHG HUB] Script finalizado e pronto!")
+local TabHacks = Window:MakeTab({Name = "HACKS", Icon = "rbxassetid://4483345998", PremiumOnly = false})
+
+TabHacks:AddToggle({Name = "Wallhop", Default = false, Callback = function(v) WallhopEnabled = v end})
+TabHacks:AddToggle({Name = "Fullbright", Default = false, Callback = function(v) FullbrightEnabled = v if not v then DisableFullbright() end end})
+TabHacks:AddToggle({Name = "Sprint", Default = false, Callback = function(v) SprintEnabled = v end})
+TabHacks:AddToggle({Name = "Auto Farm (Obby Hard)", Default = false, Callback = function(v) AutoFarmEnabled = v if v then startAutoFarm() end end})
+TabHacks:AddToggle({Name = "Auto Kill (Homer → Barts)", Default = false, Callback = function(v) AutoKillEnabled = v if v then startAutoKill() end end})
+
+TabHacks:AddButton({
+    Name = "Ritual Homer",
+    Callback = function()
+        ExecutarRitualHomer()
+    end
+})
+
+        local function ExecutarRitualHomer()
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChild("Humanoid")
+    if not (root and hum) then return end
+
+    task.spawn(function()
+        local bg = Instance.new("BodyAngularVelocity")
+        bg.AngularVelocity = Vector3.new(0, 10, 0)
+        bg.MaxTorque = Vector3.new(0, 9e9, 0)
+        bg.Parent = root
+
+        task.wait(1)
+        bg.AngularVelocity = Vector3.new(0, 50, 0)
+
+        local bv = Instance.new("BodyVelocity")
+        bv.Velocity = Vector3.new(0, 15, 0)
+        bv.MaxForce = Vector3.new(0, 9e9, 0)
+        bv.Parent = root
+
+        task.wait(2)
+        bv:Destroy()
+        bg:Destroy()
+        hum.Health = 0
+    end)
+end
+            
+
+-- Aba FUNÇÕES VIP (visível para VIP ou OWNER)
+local VIPList = {
+    ["PokitoJR"] = true,
+    ["joaaa012333"] = true,
+    -- Adicione VIPs aqui quando quiser
+}
+
+local isVIP = VIPList[LocalPlayer.Name] or VIPList[tostring(LocalPlayer.UserId)]
+
+if isVIP then
+    local TabVIP = Window:MakeTab({
+        Name = "FUNÇÕES VIP",
+        Icon = "rbxassetid://4483345998",
+        PremiumOnly = false
+    })
+
+    -- X-Ray (VIP) - versão leve
+    local XRayEnabled = false
+    TabVIP:AddToggle({
+        Name = "X-Ray",
+        Default = false,
+        Callback = function(v)
+            XRayEnabled = v
+            if v then
+                for _, part in ipairs(workspace:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide and part.Transparency < 0.9 and part ~= LocalPlayer.Character then
+                        part.LocalTransparencyModifier = 0.7
+                    end
+                end
+            else
+                for _, part in ipairs(workspace:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.LocalTransparencyModifier = 0
+                    end
+                end
+            end
+        end
+    })
+
+    -- Sprint OP 35 (VIP)
+    TabVIP:AddToggle({
+        Name = "Sprint OP (35)",
+        Default = false,
+        Callback = function(v)
+            if v then
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                    LocalPlayer.Character.Humanoid.WalkSpeed = 35
+                end
+            else
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                    LocalPlayer.Character.Humanoid.WalkSpeed = 16
+                end
+            end
+        end
+    })
+
+    -- Noclip (VIP)
+    local NoclipConnection
+    TabVIP:AddToggle({
+        Name = "Noclip",
+        Default = false,
+        Callback = function(v)
+            if v then
+                NoclipConnection = RunService.Stepped:Connect(function()
+                    if LocalPlayer.Character then
+                        for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+                            if part:IsA("BasePart") then
+                                part.CanCollide = false
+                            end
+                        end
+                    end
+                end)
+            else
+                if NoclipConnection then
+                    NoclipConnection:Disconnect()
+                    NoclipConnection = nil
+                end
+                if LocalPlayer.Character then
+                    for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.CanCollide = true
+                        end
+                    end
+                end
+            end
+        end
+    })
+
+    TabVIP:AddParagraph("Aviso VIP", "Essas funções são exclusivas para VIPs/OWNER.\nUse com cuidado!")
+end
+
+-- Aba SKINS (VIP) - só para VIP/OWNER
+if isVIP then
+    local TabSkins = Window:MakeTab({
+        Name = "Skins (VIP)",
+        Icon = "rbxassetid://4483345998",
+        PremiumOnly = false
+    })
+
+    TabSkins:AddParagraph("Aviso Importante", "Risco de ban! Desative medalhas e oculte conquistas antes de usar!\nNão nos responsabilizamos por banimentos.")
+
+    -- Função auxiliar buySkin
+    local function buySkin(character, skinName, price)
+        game:GetService('ReplicatedStorage'):WaitForChild('eventFolders')
+            :WaitForChild('store'):WaitForChild('buyItem'):FireServer(character, skinName, price)
+        task.wait(0.05)
+        game:GetService('ReplicatedStorage'):WaitForChild('eventFolders')
+            :WaitForChild('store'):WaitForChild('changeSkin'):FireServer(character, skinName)
+    end
+
+    -- Seção Bart
+    TabSkins:AddSection({Name = "Bart Skins"})
+
+    TabSkins:AddButton({
+        Name = "Comprar 1M Bart (desative medalhas!)",
+        Callback = function()
+            local args_comprar = {"Bart", "1M", 1}
+            game:GetService("ReplicatedStorage"):WaitForChild("eventFolders"):WaitForChild("store"):WaitForChild("buyItem"):FireServer(unpack(args_comprar))
+            task.wait(1)
+            local args_equipar = {"Bart", "1M"}
+            game:GetService("ReplicatedStorage"):WaitForChild("eventFolders"):WaitForChild("store"):WaitForChild("changeSkin"):FireServer(unpack(args_equipar))
+            OrionLib:MakeNotification({Name = "Sucesso!", Content = "Skin 1M Bart comprada e equipada!", Time = 3})
+        end
+    })
+
+    TabSkins:AddButton({
+        Name = "Comprar Zé Pilantra (risco de ban)",
+        Callback = function()
+            local storeRemote = game:GetService("ReplicatedStorage"):WaitForChild("eventFolders"):WaitForChild("store")
+            local buyArgs = {"Bart", "CPT"}
+            storeRemote:WaitForChild("buyItem"):FireServer(unpack(buyArgs))
+            task.wait(1.2)
+            local equipArgs = {"Bart", "CPT"}
+            storeRemote:WaitForChild("changeSkin"):FireServer(unpack(equipArgs))
+            OrionLib:MakeNotification({Name = "Skin CPT", Content = "Comprada e equipada com sucesso!", Time = 3})
+        end
+    })
+
+    TabSkins:AddButton({
+        Name = "Comprar Beauty Bart (risco de ban)",
+        Callback = function()
+            local storeRemote = game:GetService("ReplicatedStorage"):WaitForChild("eventFolders"):WaitForChild("store")
+            local buyArgs = {"Bart", "Beauty"}
+            storeRemote:WaitForChild("buyItem"):FireServer(unpack(buyArgs))
+            task.wait(1.2)
+            local equipArgs = {"Bart", "Beauty"}
+            storeRemote:WaitForChild("changeSkin"):FireServer(unpack(equipArgs))
+            OrionLib:MakeNotification({Name = "Skin Beauty", Content = "Beauty Bart foi comprada e equipada!", Time = 3})
+        end
+    })
+
+    TabSkins:AddButton({
+        Name = "Santa Bart [375]",
+        Callback = function()
+            buySkin('Bart', 'Santa Bart', 375)
+            OrionLib:MakeNotification({Name = "Sucesso!", Content = "Santa Bart comprada e equipada!", Time = 3})
+        end
+    })
+
+    TabSkins:AddButton({
+        Name = "Ghost Bart [555]",
+        Callback = function()
+            buySkin('Bart', 'Ghost Bart', 555)
+            OrionLib:MakeNotification({Name = "Sucesso!", Content = "Ghost Bart comprada e equipada!", Time = 3})
+        end
+    })
+
+    TabSkins:AddButton({
+        Name = "Jacko Bart [210]",
+        Callback = function()
+            buySkin('Bart', 'Jacko Bart', 210)
+            OrionLib:MakeNotification({Name = "Sucesso!", Content = "Jacko Bart comprada e equipada!", Time = 3})
+        end
+    })
+
+    TabSkins:AddButton({
+        Name = "Frozen Bart [335]",
+        Callback = function()
+            buySkin('Bart', 'Frozen Bart', 335)
+            OrionLib:MakeNotification({Name = "Sucesso!", Content = "Frozen Bart comprada e equipada!", Time = 3})
+        end
+    })
+
+    TabSkins:AddButton({
+        Name = "700k Bart [100]",
+        Callback = function()
+            buySkin('Bart', '700k', 100)
+            OrionLib:MakeNotification({Name = "Sucesso!", Content = "700k Bart comprada e equipada!", Time = 3})
+        end
+    })
+
+    TabSkins:AddButton({
+        Name = "Witch Bart [350]",
+        Callback = function()
+            buySkin('Bart', 'Witch Bart', 350)
+            OrionLib:MakeNotification({Name = "Sucesso!", Content = "Witch Bart comprada e equipada!", Time = 3})
+        end
+    })
+
+    -- Seção Homer
+    TabSkins:AddSection({Name = "Homer Skins"})
+
+    TabSkins:AddButton({
+        Name = "Rhonda Homer [2500]",
+        Callback = function()
+            buySkin('Homer', 'Rhonda', 2500)
+            OrionLib:MakeNotification({Name = "Sucesso!", Content = "Rhonda Homer comprada e equipada!", Time = 3})
+        end
+    })
+
+    TabSkins:AddButton({
+        Name = "Zomber Homer [700]",
+        Callback = function()
+            buySkin('Homer', 'Zomber', 700)
+            OrionLib:MakeNotification({Name = "Sucesso!", Content = "Zomber Homer comprada e equipada!", Time = 3})
+        end
+    })
+
+    TabSkins:AddButton({
+        Name = "Nettspend Homer [2000]",
+        Callback = function()
+            buySkin('Homer', 'Nettspend', 2000)
+            OrionLib:MakeNotification({Name = "Sucesso!", Content = "Nettspend Homer comprada e equipada!", Time = 3})
+        end
+    })
+end
+
+OrionLib:Init()
+
+task.delay(0.5, function()
+    ApplyOrionRankTag()
+end)
